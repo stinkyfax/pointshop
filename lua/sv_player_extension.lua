@@ -27,17 +27,15 @@ function Player:PS_PlayerDeath()
 end
 
 function Player:PS_PlayerInitialSpawn()
-	self.PS_Items = {}
 	self.PS_Points = 0
-	
-	self.PS_Items = PS:ValidateItems(util.JSONToTable(self:GetPData('PS_Items', '[]')))
-	self.PS_Points = PS:ValidatePoints(tonumber(self:GetPData('PS_Points')))
+	self.PS_Items = {}
 	
 	-- Send stuff
 	timer.Simple(1, function()
-		self:PS_SendItems()
-		self:PS_SendPoints()
-		self:PS_SendClientsideModels()
+		if IsValid(self) then
+			self:PS_LoadData()
+			self:PS_SendClientsideModels()
+		end
 	end)
 	
 	if PS.Config.NotifyOnJoin then
@@ -66,7 +64,7 @@ function Player:PS_PlayerInitialSpawn()
 
 	if PS.Config.CheckVersion and PS.BuildOutdated and self:IsAdmin() then
 		timer.Simple(5, function()
-			self:PS_Notify("Pointshop is out of date, please tell the server owner!")
+			self:PS_Notify("PointShop is out of date, please tell the server owner!")
 		end)
 	end
 	
@@ -88,8 +86,20 @@ function Player:PS_PlayerDisconnected()
 end
 
 function Player:PS_Save()
-	self:SetPData('PS_Items', util.TableToJSON(self.PS_Items))
-	self:SetPData('PS_Points', self.PS_Points)
+	PS:SetPlayerData(self, self.PS_Points, self.PS_Items)
+end
+
+function Player:PS_LoadData()
+	self.PS_Points = 0
+	self.PS_Items = {}
+	
+	PS:GetPlayerData(self, function(points, items)
+		self.PS_Points = points
+		self.PS_Items = items
+		
+		self:PS_SendPoints()
+		self:PS_SendItems()
+	end)
 end
 
 function Player:PS_CanPerformAction()
@@ -194,7 +204,12 @@ function Player:PS_BuyItem(item_id)
 	end
 	
 	if ITEM.CanPlayerBuy then -- should exist but we'll check anyway
-		local allowed, message = ITEM:CanPlayerBuy(self)
+		local allowed, message
+		if ( type(ITEM.CanPlayerBuy) == "function" ) then
+			allowed, message = ITEM:CanPlayerBuy(self)
+		elseif ( type(ITEM.CanPlayerBuy) == "boolean" ) then
+			allowed = ITEM.CanPlayerBuy
+		end
 		
 		if not allowed then
 			self:PS_Notify(message or 'You\'re not allowed to buy this item!')
@@ -222,8 +237,22 @@ function Player:PS_SellItem(item_id)
 	if not self:PS_HasItem(item_id) then return false end
 	
 	local ITEM = PS.Items[item_id]
-	local points = PS.Config.CalculateSellPrice(self, ITEM)
 	
+	if ITEM.CanPlayerSell then -- should exist but we'll check anyway
+		local allowed, message
+		if ( type(ITEM.CanPlayerSell) == "function" ) then
+			allowed, message = ITEM:CanPlayerSell(self)
+		elseif ( type(ITEM.CanPlayerSell) == "boolean" ) then
+			allowed = ITEM.CanPlayerSell
+		end
+		
+		if not allowed then
+			self:PS_Notify(message or 'You\'re not allowed to sell this item!')
+			return false
+		end
+	end
+
+	local points = PS.Config.CalculateSellPrice(self, ITEM)
 	self:PS_GivePoints(points)
 	
 	ITEM:OnHolster(self)
@@ -357,7 +386,7 @@ end
 
 -- send stuff
 
-function Player:PS_SendPoints()
+function Player:PS_SendPoints(wat)
 	self:PS_Save()
 	
 	net.Start('PS_Points')
@@ -366,7 +395,7 @@ function Player:PS_SendPoints()
 	net.Broadcast()
 end
 
-function Player:PS_SendItems()
+function Player:PS_SendItems(wat)
 	self:PS_Save()
 	
 	net.Start('PS_Items')

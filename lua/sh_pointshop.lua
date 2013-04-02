@@ -41,6 +41,7 @@ end
 -- Initialization
 
 function PS:Initialize()
+	if SERVER then self:LoadDataProviders() end
 	if SERVER and self.Config.CheckVersion then self:CheckVersion() end
 end
 
@@ -57,6 +58,7 @@ function PS:LoadItems()
 			
 			CATEGORY.Name = ''
 			CATEGORY.Icon = ''
+			CATEGORY.Order = 0
 			CATEGORY.AllowedEquipped = -1
 			CATEGORY.AllowedUserGroups = {}
 			CATEGORY.CanPlayerSee = function() return true end
@@ -90,11 +92,13 @@ function PS:LoadItems()
                                         ITEM.PlayerOffset = 0
                                         ITEM.PlayerForwardOffset = 0
 					
+					ITEM.CanPlayerBuy = true
+					ITEM.CanPlayerSell = true
+
 					ITEM.OnBuy = function() end
 					ITEM.OnSell = function() end
 					ITEM.OnEquip = function() end
 					ITEM.OnHolster = function() end
-					ITEM.CanPlayerBuy = function() return true end
 					ITEM.OnModify = function() end
 					ITEM.ModifyClientsideModel = function(ITEM, ply, model, pos, ang)
 						return model, pos, ang

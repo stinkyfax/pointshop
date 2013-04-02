@@ -24,7 +24,7 @@ end)
 
 net.Receive('PS_SendPoints', function(length, ply)
 	local other = net.ReadEntity()
-	local points = net.ReadInt(32)
+	local points = math.Clamp(net.ReadInt(32), 0, 1000000)
 	
 	if PS.Config.CanPlayersGivePoints and other and points and IsValid(other) and other:IsPlayer() and ply and IsValid(ply) and ply:IsPlayer() and ply:PS_HasPoints(points) then
 		ply:PS_TakePoints(points)
@@ -199,30 +199,77 @@ PS.LatestBuild = 0
 PS.BuildOutdated = false
 
 local function CompareVersions()
-	if ( PS.CurrentBuild < PS.LatestBuild ) then
-		print( "Pointshop is out of date!" )
-		print( "Local version: " .. PS.CurrentBuild .. " Latest version: " .. PS.LatestBuild )
+	if PS.CurrentBuild < PS.LatestBuild then
+		MsgN('PointShop is out of date!')
+		MsgN('Local version: ' .. PS.CurrentBuild .. ', Latest version: ' .. PS.LatestBuild)
 
 		PS.BuildOutdated = true
 	else
-		print( "Pointshop is on the latest version." )
+		MsgN('PointShop is on the latest version.')
 	end
 end
 
 function PS:CheckVersion()
-	if ( file.Exists( "data/pointshop_build.txt", "GAME" ) ) then
-		PS.CurrentBuild = tonumber(file.Read( "data/pointshop_build.txt", "GAME" ))
+	if file.Exists('data/pointshop_build.txt', 'GAME') then
+		PS.CurrentBuild = tonumber(file.Read('data/pointshop_build.txt', 'GAME')) or 0
 	end
 
 	local url = self.Config.Branch .. "data/pointshop_build.txt"
 	http.Fetch( url,
 		function( content ) -- onSuccess
-			PS.LatestBuild = tonumber( content )
+			PS.LatestBuild = tonumber( content ) or 0
 			CompareVersions()
 		end,
-		function( failCode ) -- onFailure
-			print( "Pointshop couldn't check version." )
-			print( url, " returned ", failCode )
+		function(failCode) -- onFailure
+			MsgN('PointShop couldn\'t check version.')
+			MsgN(url, ' returned ', failCode)
 		end
 	)
+end
+
+-- data providers
+
+PS.DataProviders = {}
+
+function PS:LoadDataProviders()
+	local files, _ = file.Find('providers/*', 'LUA')
+	
+	for _, filename in pairs(files) do
+		PROVIDER = {}
+		PROVIDER.__index = {}
+		
+		PROVIDER.ID = string.gsub(filename, '.lua', '')
+		
+		function PROVIDER:GetFallback()
+			return self.DataProviders[self.Fallback]
+		end
+		
+		include('providers/' .. filename)
+		
+		self.DataProviders[PROVIDER.ID] = PROVIDER
+	end
+end
+
+function PS:GetPlayerData(ply, callback)
+	local provider = self.DataProviders[self.Config.DataProvider]
+	
+	if not provider or not self.Config.DataProvider then
+		Error('PointShop: Missing provider. Update ALL files when there is an update.')
+		return
+	end
+	
+	provider:GetData(ply, function(points, items)
+		callback(PS:ValidatePoints(tonumber(points)), PS:ValidateItems(items))
+	end)
+end
+
+function PS:SetPlayerData(ply, points, items)
+	local provider = self.DataProviders[self.Config.DataProvider]
+	
+	if not provider or not self.Config.DataProvider then
+		Error('PointShop: Missing provider. Update ALL files when there is an update.')
+		return
+	end
+	
+	provider:SetData(ply, points, items)
 end
