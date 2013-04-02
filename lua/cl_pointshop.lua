@@ -139,6 +139,22 @@ hook.Add('PostPlayerDraw', 'PS_PostPlayerDraw', function(ply)
 	if not ply:Alive() then return end
 	if ply == LocalPlayer() and GetViewEntity():GetClass() == 'player' and (GetConVar('thirdperson') and GetConVar('thirdperson'):GetInt() == 0) then return end
 	if not PS.ClientsideModels[ply] then return end
+
+        local upOffset=-20
+        local forwardOffset=0
+
+        for item_id, item in pairs(ply.PS_Items) do
+          local ITEM = PS.Items[item_id]
+          if item.Equipped then
+            upOffset = upOffset + ITEM.PlayerOffset
+            forwardOffset = forwardOffset + ITEM.PlayerForwardOffset
+            --print(Format("Checking item %s with upOffset %d forwardOffset %d", ITEM.Name, ITEM.PlayerOffset, ITEM.PlayerForwardOffset));
+
+          end
+        end
+
+
+
 	
 	for item_id, model in pairs(PS.ClientsideModels[ply]) do
 		if not PS.Items[item_id] then PS.ClientsideModel[ply][item_id] = nil continue end
@@ -166,6 +182,8 @@ hook.Add('PostPlayerDraw', 'PS_PostPlayerDraw', function(ply)
 			
 			pos, ang = ply:GetBonePosition(bone_id)
 		end
+
+	        pos = pos + (ang:Forward() * forwardOffset) + (ang:Up() * upOffset)
 		
 		model, pos, ang = ITEM:ModifyClientsideModel(ply, model, pos, ang)
 		
