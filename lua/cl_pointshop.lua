@@ -139,9 +139,11 @@ hook.Add('PostPlayerDraw', 'PS_PostPlayerDraw', function(ply)
 	if not ply:Alive() then return end
 	if ply == LocalPlayer() and GetViewEntity():GetClass() == 'player' and (GetConVar('thirdperson') and GetConVar('thirdperson'):GetInt() == 0) then return end
 	if not PS.ClientsideModels[ply] then return end
+        if ply.PS_Items == nil then return end
 
         local upOffset=-20
         local forwardOffset=0
+
 
         for item_id, item in pairs(ply.PS_Items) do
           local ITEM = PS.Items[item_id]
